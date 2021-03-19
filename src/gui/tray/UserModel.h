@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include <QStringList>
 #include <QQuickImageProvider>
+#include <QHash>
 
 #include "ActivityListModel.h"
 #include "accountmanager.h"
@@ -91,11 +92,16 @@ private:
     bool isActivityOfCurrentAccount(const Folder *folder) const;
     bool isUnsolvableConflict(const SyncFileItemPtr &item) const;
 
+    int notificationId(const QString &subject, const QString &message);
+    void displayNotification(const QString &title, const QString &message);
+    void displayNotification(int id, const QString &title, const QString &message);
+
 private:
     AccountStatePtr _account;
     bool _isCurrentUser;
     ActivityListModel *_activityModel;
     ActivityList _blacklistedNotifications;
+    QHash<QString, int> notificationIds;
 
     QTimer _notificationCheckTimer;
     QHash<AccountState *, QElapsedTimer> _timeSinceLastCheck;

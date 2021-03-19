@@ -10,6 +10,7 @@
 #include "notificationconfirmjob.h"
 #include "logger.h"
 #include "guiutility.h"
+#include "syncfileitem.h"
 
 #include <QDesktopServices>
 #include <QIcon>
@@ -58,11 +59,43 @@ User::User(AccountStatePtr &account, const bool &isCurrent, QObject *parent)
     connect(_activityModel, &ActivityListModel::sendNotificationRequest, this, &User::slotSendNotificationRequest);
 }
 
-void User::slotBuildNotificationDisplay(const ActivityList &list)
+void User::displayNotification(const QString &title, const QString &message)
+{
+    displayNotification(notificationId(title, message), title, message);
+}
+
+void User::displayNotification(int id, const QString &title, const QString &message)
 {
     // Whether a new notification was added to the list
     bool newNotificationShown = false;
+    // handle gui logs. In order to NOT annoy the user with every fetching of the
+    // notifications the notification id is stored in a Set. Only if an id
+    // is not in the set, it qualifies for guiLog.
+    // Important: The _guiLoggedNotifications set must be wiped regularly which
+    // will repeat the gui log.
 
+    // after one hour, clear the gui log notification store
+    if (_guiLogTimer.elapsed() > 60 * 60 * 1000) {
+        _guiLoggedNotifications.clear();
+    }
+    if (!_guiLoggedNotifications.contains(id)) {
+        newNotificationShown = true;
+        _guiLoggedNotifications.insert(id);
+
+        // Assemble a tray notification for the NEW notification
+        ConfigFile cfg;
+        if (cfg.optionalServerNotifications()) {
+            emit guiLog(title, message);
+        }
+    }
+    // restart the gui log timer now that we show a new notification
+    if (newNotificationShown) {
+        _guiLogTimer.start();
+    }
+}
+
+void User::slotBuildNotificationDisplay(const ActivityList &list)
+{
     _activityModel->clearNotifications();
 
     foreach (auto activity, list) {
@@ -70,39 +103,9 @@ void User::slotBuildNotificationDisplay(const ActivityList &list)
             qCInfo(lcActivity) << "Activity in blacklist, skip";
             continue;
         }
-
-        // handle gui logs. In order to NOT annoy the user with every fetching of the
-        // notifications the notification id is stored in a Set. Only if an id
-        // is not in the set, it qualifies for guiLog.
-        // Important: The _guiLoggedNotifications set must be wiped regularly which
-        // will repeat the gui log.
-
-        // after one hour, clear the gui log notification store
-        if (_guiLogTimer.elapsed() > 60 * 60 * 1000) {
-            _guiLoggedNotifications.clear();
-        }
-
-        if (!_guiLoggedNotifications.contains(activity._id)) {
-            newNotificationShown = true;
-            _guiLoggedNotifications.insert(activity._id);
-
-            // Assemble a tray notification for the NEW notification
-            ConfigFile cfg;
-            if (cfg.optionalServerNotifications() && isDesktopNotificationsAllowed()) {
-                if (AccountManager::instance()->accounts().count() == 1) {
-                    emit guiLog(activity._subject, "");
-                } else {
-                    emit guiLog(activity._subject, activity._accName);
-                }
-            }
-        }
-
+        const auto message = AccountManager::instance()->accounts().count() == 1 ? "" : activity._accName;
+        displayNotification(activity._subject, message);
         _activityModel->addNotificationToActivityList(activity);
-    }
-
-    // restart the gui log timer now that we show a new notification
-    if (newNotificationShown) {
-        _guiLogTimer.start();
     }
 }
 
@@ -496,9 +499,24 @@ void User::slotItemCompleted(const QString &folder, const SyncFileItemPtr &item)
             _activityModel->addIgnoredFileToList(activity);
         } else {
             // add 'protocol error' to activity list
+            if (item->_status == SyncFileItem::Status::FileNameInvalid) {
+                displayNotification(item->_file, activity._subject);
+            }
             _activityModel->addErrorToActivityList(activity);
         }
     }
+}
+
+int User::notificationId(const QString &subject, const QString &message)
+{
+    const QString idKey = subject + message;
+    const auto idsIter = notificationIds.find(idKey);
+    if (idsIter != notificationIds.end()) {
+        return *idsIter;
+    }
+    const auto newId = notificationIds.size();
+    notificationIds[idKey] = newId;
+    return newId;
 }
 
 AccountPtr User::account() const
