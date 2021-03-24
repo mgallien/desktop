@@ -23,7 +23,7 @@ PushNotifications::~PushNotifications()
 
 void PushNotifications::setup()
 {
-    _isReady = false;
+    qCInfo(lcPushNotifications) << "Setup push notifications";
     _failedAuthenticationAttemptsCount = 0;
     reconnectToWebSocket();
 }
@@ -36,15 +36,25 @@ void PushNotifications::reconnectToWebSocket()
 
 void PushNotifications::closeWebSocket()
 {
+    qCInfo(lcPushNotifications) << "Close websocket" << _webSocket;
+
+    _pingTimeoutTimer.stop();
+    _pingTimedOutTimer.stop();
+    _isReady = false;
+
+    // Maybe there run some reconnection attempts
+    if (_reconnectTimer) {
+        _reconnectTimer->stop();
+    }
+
     if (_webSocket) {
-        qCInfo(lcPushNotifications) << "Close websocket";
         _webSocket->close();
     }
 }
 
 void PushNotifications::onWebSocketConnected()
 {
-    qCInfo(lcPushNotifications) << "Connected to websocket";
+    qCInfo(lcPushNotifications) << "Connected to websocket" << _webSocket;
 
     connect(_webSocket, &QWebSocket::textMessageReceived, this, &PushNotifications::onWebSocketTextMessageReceived, Qt::UniqueConnection);
 
@@ -64,7 +74,7 @@ void PushNotifications::authenticateOnWebSocket()
 
 void PushNotifications::onWebSocketDisconnected()
 {
-    qCInfo(lcPushNotifications) << "Disconnected from websocket";
+    qCInfo(lcPushNotifications) << "Disconnected from websocket" << _webSocket;
 }
 
 void PushNotifications::onWebSocketTextMessageReceived(const QString &message)
@@ -94,7 +104,6 @@ void PushNotifications::onWebSocketError(QAbstractSocket::SocketError error)
     }
 
     qCWarning(lcPushNotifications) << "Websocket error" << error;
-
     _isReady = false;
     emit connectionLost();
 }
@@ -135,8 +144,8 @@ void PushNotifications::openWebSocket()
     const auto webSocketUrl = capabilities.pushNotificationsWebSocketUrl();
 
     if (!_webSocket) {
-        qCInfo(lcPushNotifications) << "Create websocket";
         _webSocket = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
+        qCInfo(lcPushNotifications) << "Created websocket" << _webSocket;
     }
 
     if (_webSocket) {
@@ -144,6 +153,7 @@ void PushNotifications::openWebSocket()
         connect(_webSocket, &QWebSocket::sslErrors, this, &PushNotifications::onWebSocketSslErrors, Qt::UniqueConnection);
         connect(_webSocket, &QWebSocket::connected, this, &PushNotifications::onWebSocketConnected, Qt::UniqueConnection);
         connect(_webSocket, &QWebSocket::disconnected, this, &PushNotifications::onWebSocketDisconnected, Qt::UniqueConnection);
+        connect(_webSocket, &QWebSocket::pong, this, &PushNotifications::onWebSocketPongReceived, Qt::UniqueConnection);
 
         qCInfo(lcPushNotifications) << "Open connection to websocket on:" << webSocketUrl;
         _webSocket->open(webSocketUrl);
@@ -165,6 +175,7 @@ void PushNotifications::handleAuthenticated()
     qCInfo(lcPushNotifications) << "Authenticated successful on websocket";
     _failedAuthenticationAttemptsCount = 0;
     _isReady = true;
+    startPingTimeoutTimer();
     emit ready();
 }
 
@@ -178,7 +189,7 @@ void PushNotifications::handleInvalidCredentials()
 {
     qCInfo(lcPushNotifications) << "Invalid credentials submitted to websocket";
     if (!tryReconnectToWebSocket()) {
-        _isReady = false;
+        closeWebSocket();
         emit authenticationFailed();
     }
 }
@@ -193,5 +204,77 @@ void PushNotifications::handleNotifyActivity()
 {
     qCInfo(lcPushNotifications) << "Push activity arrived";
     emit activitiesChanged(_account);
+}
+void PushNotifications::onWebSocketPongReceived(quint64 /*elapsedTime*/, const QByteArray &payload)
+{
+    handleTimeoutPong(payload);
+}
+
+void PushNotifications::handleTimeoutPong(const QByteArray &payload)
+{
+    // We are not interested in different pongs from the server
+    const auto expectedPingPayload = getTimeoutPingPayload();
+    if (payload != expectedPingPayload) {
+        return;
+    }
+
+    qCDebug(lcPushNotifications) << "Pong received in time";
+
+
+    _pingTimedOutTimer.stop();
+    _timeoutPongReceivedFromWebSocketServer = true;
+    startPingTimeoutTimer();
+}
+
+void PushNotifications::startPingTimeoutTimer()
+{
+    _pingTimeoutTimer.setInterval(_pingTimeoutInterval);
+    _pingTimeoutTimer.setSingleShot(true);
+    connect(&_pingTimeoutTimer, &QTimer::timeout, this, &PushNotifications::pingWebSocketServer, Qt::UniqueConnection);
+    _pingTimeoutTimer.start();
+}
+
+void PushNotifications::startPingTimedOutTimer()
+{
+    _pingTimedOutTimer.setInterval(_pingTimeoutInterval);
+    _pingTimedOutTimer.setSingleShot(true);
+    connect(&_pingTimedOutTimer, &QTimer::timeout, this, &PushNotifications::onPingTimedOut, Qt::UniqueConnection);
+    _pingTimedOutTimer.start();
+}
+
+QByteArray PushNotifications::getTimeoutPingPayload() const
+{
+    const void *push_notifications_address = this;
+    return QByteArray(reinterpret_cast<char *>(&push_notifications_address), sizeof(push_notifications_address));
+}
+
+void PushNotifications::pingWebSocketServer()
+{
+    Q_ASSERT(_webSocket);
+    qCDebug(lcPushNotifications, "Ping websocket server");
+
+    _timeoutPongReceivedFromWebSocketServer = false;
+
+    _webSocket->ping(getTimeoutPingPayload());
+    startPingTimedOutTimer();
+}
+
+void PushNotifications::onPingTimedOut()
+{
+    if (_timeoutPongReceivedFromWebSocketServer) {
+        qCDebug(lcPushNotifications) << "Websocket respond with a pong in time.";
+        return;
+    }
+
+    qCInfo(lcPushNotifications) << "Websocket did not respond with a pong in time. Try to reconnect.";
+    // Try again to connect
+    setup();
+}
+
+void PushNotifications::setPingTimeoutInterval(uint32_t timeoutInterval)
+{
+    _pingTimeoutInterval = timeoutInterval;
+    _pingTimedOutTimer.stop();
+    startPingTimeoutTimer();
 }
 }

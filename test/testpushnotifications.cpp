@@ -205,6 +205,18 @@ private slots:
         auto accountSent = pushNotificationsDisabledSpy.at(0).at(0).value<OCC::Account *>();
         QCOMPARE(accountSent, account.data());
     }
+
+    void testPingTimeout_pingTimedOut_reconnect()
+    {
+        FakeWebSocketServer fakeServer;
+        auto account = FakeWebSocketServer::createAccount();
+        fakeServer.authenticateAccount(account);
+
+        // Set the ping timeout interval to zero and check if the server attemps to authenticate again
+        fakeServer.clearTextMessages();
+        account->pushNotifications()->setPingTimeoutInterval(0);
+        fakeServer.authenticateAccount(account);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestPushNotifications)

@@ -42,6 +42,8 @@ public:
 
     /**
      * Set the interval for reconnection attempts
+     *
+     * @param interval Interval in milliseconds.
      */
     void setReconnectTimerInterval(uint32_t interval);
 
@@ -51,6 +53,15 @@ public:
      * Ready to use means connected and authenticated.
      */
     bool isReady() const;
+
+    /**
+     * Set the interval in which the websocket will ping the server if he is still alive.
+     *
+     * If the websocket does not respond in timeoutInterval, the connection will be terminated.
+     *
+     * @param timeoutInterval Interval in milliseconds.
+     */
+    void setPingTimeoutInterval(uint32_t timeoutInterval);
 
 signals:
     /**
@@ -93,6 +104,8 @@ private slots:
     void onWebSocketTextMessageReceived(const QString &message);
     void onWebSocketError(QAbstractSocket::SocketError error);
     void onWebSocketSslErrors(const QList<QSslError> &errors);
+    void onWebSocketPongReceived(quint64 elapsedTime, const QByteArray &playload);
+    void onPingTimedOut();
 
 private:
     void openWebSocket();
@@ -101,6 +114,11 @@ private:
     void authenticateOnWebSocket();
     bool tryReconnectToWebSocket();
     void initReconnectTimer();
+    void pingWebSocketServer();
+    QByteArray getTimeoutPingPayload() const;
+    void handleTimeoutPong(const QByteArray &payload);
+    void startPingTimeoutTimer();
+    void startPingTimedOutTimer();
 
     void handleAuthenticated();
     void handleNotifyFile();
@@ -114,6 +132,11 @@ private:
     QTimer *_reconnectTimer = nullptr;
     uint32_t _reconnectTimerInterval = 20 * 1000;
     bool _isReady = false;
+
+    QTimer _pingTimeoutTimer;
+    QTimer _pingTimedOutTimer;
+    bool _timeoutPongReceivedFromWebSocketServer = false;
+    uint32_t _pingTimeoutInterval = 30 * 1000;
 };
 
 }
