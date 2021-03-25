@@ -38,8 +38,8 @@ void PushNotifications::closeWebSocket()
 {
     qCInfo(lcPushNotifications) << "Close websocket" << _webSocket;
 
+    _pingTimer.stop();
     _pingTimeoutTimer.stop();
-    _pingTimedOutTimer.stop();
     _isReady = false;
 
     // Maybe there run some reconnection attempts
@@ -205,6 +205,7 @@ void PushNotifications::handleNotifyActivity()
     qCInfo(lcPushNotifications) << "Push activity arrived";
     emit activitiesChanged(_account);
 }
+
 void PushNotifications::onWebSocketPongReceived(quint64 /*elapsedTime*/, const QByteArray &payload)
 {
     handleTimeoutPong(payload);
@@ -213,7 +214,7 @@ void PushNotifications::onWebSocketPongReceived(quint64 /*elapsedTime*/, const Q
 void PushNotifications::handleTimeoutPong(const QByteArray &payload)
 {
     // We are not interested in different pongs from the server
-    const auto expectedPingPayload = getTimeoutPingPayload();
+    const auto expectedPingPayload = timeoutPingPayload();
     if (payload != expectedPingPayload) {
         return;
     }
@@ -221,28 +222,28 @@ void PushNotifications::handleTimeoutPong(const QByteArray &payload)
     qCDebug(lcPushNotifications) << "Pong received in time";
 
 
-    _pingTimedOutTimer.stop();
     _timeoutPongReceivedFromWebSocketServer = true;
     startPingTimeoutTimer();
 }
 
 void PushNotifications::startPingTimeoutTimer()
 {
-    _pingTimeoutTimer.setInterval(_pingTimeoutInterval);
-    _pingTimeoutTimer.setSingleShot(true);
-    connect(&_pingTimeoutTimer, &QTimer::timeout, this, &PushNotifications::pingWebSocketServer, Qt::UniqueConnection);
-    _pingTimeoutTimer.start();
+    _pingTimeoutTimer.stop();
+    _pingTimer.setInterval(_pingTimeoutInterval);
+    _pingTimer.setSingleShot(true);
+    connect(&_pingTimer, &QTimer::timeout, this, &PushNotifications::pingWebSocketServer, Qt::UniqueConnection);
+    _pingTimer.start();
 }
 
 void PushNotifications::startPingTimedOutTimer()
 {
-    _pingTimedOutTimer.setInterval(_pingTimeoutInterval);
-    _pingTimedOutTimer.setSingleShot(true);
-    connect(&_pingTimedOutTimer, &QTimer::timeout, this, &PushNotifications::onPingTimedOut, Qt::UniqueConnection);
-    _pingTimedOutTimer.start();
+    _pingTimeoutTimer.setInterval(_pingTimeoutInterval);
+    _pingTimeoutTimer.setSingleShot(true);
+    connect(&_pingTimeoutTimer, &QTimer::timeout, this, &PushNotifications::onPingTimedOut, Qt::UniqueConnection);
+    _pingTimeoutTimer.start();
 }
 
-QByteArray PushNotifications::getTimeoutPingPayload() const
+QByteArray PushNotifications::timeoutPingPayload() const
 {
     const void *push_notifications_address = this;
     return QByteArray(reinterpret_cast<char *>(&push_notifications_address), sizeof(push_notifications_address));
@@ -255,7 +256,7 @@ void PushNotifications::pingWebSocketServer()
 
     _timeoutPongReceivedFromWebSocketServer = false;
 
-    _webSocket->ping(getTimeoutPingPayload());
+    _webSocket->ping(timeoutPingPayload());
     startPingTimedOutTimer();
 }
 
@@ -274,7 +275,6 @@ void PushNotifications::onPingTimedOut()
 void PushNotifications::setPingTimeoutInterval(uint32_t timeoutInterval)
 {
     _pingTimeoutInterval = timeoutInterval;
-    _pingTimedOutTimer.stop();
     startPingTimeoutTimer();
 }
 }

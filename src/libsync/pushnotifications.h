@@ -55,7 +55,7 @@ public:
     bool isReady() const;
 
     /**
-     * Set the interval in which the websocket will ping the server if he is still alive.
+     * Set the interval in which the websocket will ping the server if it is still alive.
      *
      * If the websocket does not respond in timeoutInterval, the connection will be terminated.
      *
@@ -115,7 +115,7 @@ private:
     bool tryReconnectToWebSocket();
     void initReconnectTimer();
     void pingWebSocketServer();
-    QByteArray getTimeoutPingPayload() const;
+    QByteArray timeoutPingPayload() const;
     void handleTimeoutPong(const QByteArray &payload);
     void startPingTimeoutTimer();
     void startPingTimedOutTimer();
@@ -133,8 +133,8 @@ private:
     uint32_t _reconnectTimerInterval = 20 * 1000;
     bool _isReady = false;
 
+    QTimer _pingTimer;
     QTimer _pingTimeoutTimer;
-    QTimer _pingTimedOutTimer;
     bool _timeoutPongReceivedFromWebSocketServer = false;
     uint32_t _pingTimeoutInterval = 30 * 1000;
 };

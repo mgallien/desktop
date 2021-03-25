@@ -35,13 +35,13 @@ public:
 
     void close();
 
-    void waitForTextMessages() const;
+    bool waitForTextMessages() const;
 
-    uint32_t getTextMessagesCount() const;
+    uint32_t textMessagesCount() const;
 
-    QString getTextMessage(uint32_t messageNumber) const;
+    QString textMessage(uint32_t messageNumber) const;
 
-    QWebSocket *getSocketForTextMessage(uint32_t messageNumber) const;
+    QWebSocket *socketForTextMessage(uint32_t messageNumber) const;
 
     void clearTextMessages();
 

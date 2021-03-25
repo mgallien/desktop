@@ -18,7 +18,6 @@ FakeWebSocketServer::FakeWebSocketServer(quint16 port, QObject *parent)
     connect(_webSocketServer, &QWebSocketServer::closed, this, &FakeWebSocketServer::closed);
     qCInfo(lcFakeWebSocketServer) << "Open fake websocket server on port:" << port;
     _processTextMessageSpy = std::make_unique<QSignalSpy>(this, &FakeWebSocketServer::processTextMessage);
-    QVERIFY(_processTextMessageSpy->isValid());
 }
 
 FakeWebSocketServer::~FakeWebSocketServer()
@@ -31,28 +30,33 @@ QWebSocket *FakeWebSocketServer::authenticateAccount(const OCC::AccountPtr accou
     const auto pushNotifications = account->pushNotifications();
     Q_ASSERT(pushNotifications);
     QSignalSpy readySpy(pushNotifications, &OCC::PushNotifications::ready);
-    Q_ASSERT(readySpy.isValid());
 
     // Wait for authentication
-    waitForTextMessages();
+    if (!waitForTextMessages()) {
+        return nullptr;
+    }
 
     // Right authentication data should be sent
-    Q_ASSERT(getTextMessagesCount() == 2);
+    if (textMessagesCount() != 2) {
+        return nullptr;
+    }
 
-    const auto socket = getSocketForTextMessage(0);
-    const auto userSent = getTextMessage(0);
-    const auto passwordSent = getTextMessage(1);
+    const auto socket = socketForTextMessage(0);
+    const auto userSent = textMessage(0);
+    const auto passwordSent = textMessage(1);
 
-    Q_ASSERT(userSent == account->credentials()->user());
-    Q_ASSERT(passwordSent == account->credentials()->password());
+    if (userSent != account->credentials()->user() || passwordSent != account->credentials()->password()) {
+        return nullptr;
+    }
 
     // Sent authenticated
     socket->sendTextMessage("authenticated");
 
     // Wait for ready signal
     readySpy.wait();
-    Q_ASSERT(readySpy.count() == 1);
-    Q_ASSERT(account->pushNotifications()->isReady() == true);
+    if (readySpy.count() != 1 || !account->pushNotifications()->isReady()) {
+        return nullptr;
+    }
 
     return socket;
 }
@@ -98,23 +102,23 @@ void FakeWebSocketServer::socketDisconnected()
     }
 }
 
-void FakeWebSocketServer::waitForTextMessages() const
+bool FakeWebSocketServer::waitForTextMessages() const
 {
-    QVERIFY(_processTextMessageSpy->wait());
+    return _processTextMessageSpy->wait();
 }
 
-uint32_t FakeWebSocketServer::getTextMessagesCount() const
+uint32_t FakeWebSocketServer::textMessagesCount() const
 {
     return _processTextMessageSpy->count();
 }
 
-QString FakeWebSocketServer::getTextMessage(uint32_t messageNumber) const
+QString FakeWebSocketServer::textMessage(uint32_t messageNumber) const
 {
     Q_ASSERT(messageNumber < _processTextMessageSpy->count());
     return _processTextMessageSpy->at(messageNumber).at(1).toString();
 }
 
-QWebSocket *FakeWebSocketServer::getSocketForTextMessage(uint32_t messageNumber) const
+QWebSocket *FakeWebSocketServer::socketForTextMessage(uint32_t messageNumber) const
 {
     Q_ASSERT(messageNumber < _processTextMessageSpy->count());
     return _processTextMessageSpy->at(messageNumber).at(0).value<QWebSocket *>();

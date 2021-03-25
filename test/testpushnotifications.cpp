@@ -16,7 +16,7 @@ private slots:
         FakeWebSocketServer fakeServer;
         auto account = FakeWebSocketServer::createAccount();
 
-        fakeServer.authenticateAccount(account);
+        QVERIFY(fakeServer.authenticateAccount(account));
     }
 
     void testOnWebSocketTextMessageReceived_notifyFileMessage_emitFilesChanged()
@@ -24,6 +24,7 @@ private slots:
         FakeWebSocketServer fakeServer;
         auto account = FakeWebSocketServer::createAccount();
         const auto socket = fakeServer.authenticateAccount(account);
+        QVERIFY(socket);
         QSignalSpy filesChangedSpy(account->pushNotifications(), &OCC::PushNotifications::filesChanged);
         QVERIFY(filesChangedSpy.isValid());
 
@@ -41,6 +42,7 @@ private slots:
         FakeWebSocketServer fakeServer;
         auto account = FakeWebSocketServer::createAccount();
         const auto socket = fakeServer.authenticateAccount(account);
+        QVERIFY(socket);
         QSignalSpy activitySpy(account->pushNotifications(), &OCC::PushNotifications::activitiesChanged);
         QVERIFY(activitySpy.isValid());
 
@@ -59,6 +61,7 @@ private slots:
         FakeWebSocketServer fakeServer;
         auto account = FakeWebSocketServer::createAccount();
         const auto socket = fakeServer.authenticateAccount(account);
+        QVERIFY(socket);
         QSignalSpy notificationSpy(account->pushNotifications(), &OCC::PushNotifications::notificationsChanged);
         QVERIFY(notificationSpy.isValid());
 
@@ -80,18 +83,18 @@ private slots:
         account->pushNotifications()->setReconnectTimerInterval(0);
 
         // Wait for authentication attempt and then sent invalid credentials
-        fakeServer.waitForTextMessages();
-        QCOMPARE(fakeServer.getTextMessagesCount(), 2);
-        const auto socket = fakeServer.getSocketForTextMessage(0);
-        const auto firstPasswordSent = fakeServer.getTextMessage(1);
+        QVERIFY(fakeServer.waitForTextMessages());
+        QCOMPARE(fakeServer.textMessagesCount(), 2);
+        const auto socket = fakeServer.socketForTextMessage(0);
+        const auto firstPasswordSent = fakeServer.textMessage(1);
         QCOMPARE(firstPasswordSent, account->credentials()->password());
         fakeServer.clearTextMessages();
         socket->sendTextMessage("err: Invalid credentials");
 
         // Wait for a new authentication attempt
-        fakeServer.waitForTextMessages();
-        QCOMPARE(fakeServer.getTextMessagesCount(), 2);
-        const auto secondPasswordSent = fakeServer.getTextMessage(1);
+        QVERIFY(fakeServer.waitForTextMessages());
+        QCOMPARE(fakeServer.textMessagesCount(), 2);
+        const auto secondPasswordSent = fakeServer.textMessage(1);
         QCOMPARE(secondPasswordSent, account->credentials()->password());
     }
 
@@ -103,9 +106,9 @@ private slots:
         QVERIFY(connectionLostSpy.isValid());
 
         // Wait for authentication and then sent a network error
-        fakeServer.waitForTextMessages();
-        QCOMPARE(fakeServer.getTextMessagesCount(), 2);
-        auto socket = fakeServer.getSocketForTextMessage(0);
+        QVERIFY(fakeServer.waitForTextMessages());
+        QCOMPARE(fakeServer.textMessagesCount(), 2);
+        auto socket = fakeServer.socketForTextMessage(0);
         socket->abort();
 
         QVERIFY(connectionLostSpy.wait());
@@ -123,9 +126,9 @@ private slots:
 
         // Let three authentication attempts fail
         for (uint8_t i = 0; i < 3; ++i) {
-            fakeServer.waitForTextMessages();
-            QCOMPARE(fakeServer.getTextMessagesCount(), 2);
-            auto socket = fakeServer.getSocketForTextMessage(0);
+            QVERIFY(fakeServer.waitForTextMessages());
+            QCOMPARE(fakeServer.textMessagesCount(), 2);
+            auto socket = fakeServer.socketForTextMessage(0);
             fakeServer.clearTextMessages();
             socket->sendTextMessage("err: Invalid credentials");
         }
@@ -142,7 +145,7 @@ private slots:
         FakeWebSocketServer fakeServer;
         auto account = FakeWebSocketServer::createAccount();
 
-        fakeServer.waitForTextMessages();
+        QVERIFY(fakeServer.waitForTextMessages());
         // FIXME: This a little bit ugly but I had no better idea how to trigger a error on the websocket client.
         // The websocket that is retrived through the server is not connected to the ssl error signal.
         auto pushNotificationsWebSocketChildren = account->pushNotifications()->findChildren<QWebSocket *>();
@@ -160,6 +163,7 @@ private slots:
         // Need to set reconnect timer interval to zero for tests
         account->pushNotifications()->setReconnectTimerInterval(0);
         const auto socket = fakeServer.authenticateAccount(account);
+        QVERIFY(socket);
 
         QSignalSpy connectionLostSpy(account->pushNotifications(), &OCC::PushNotifications::connectionLost);
         QVERIFY(connectionLostSpy.isValid());
@@ -191,9 +195,9 @@ private slots:
 
         // Let three authentication attempts fail
         for (uint8_t i = 0; i < 3; ++i) {
-            fakeServer.waitForTextMessages();
-            QCOMPARE(fakeServer.getTextMessagesCount(), 2);
-            auto socket = fakeServer.getSocketForTextMessage(0);
+            QVERIFY(fakeServer.waitForTextMessages());
+            QCOMPARE(fakeServer.textMessagesCount(), 2);
+            auto socket = fakeServer.socketForTextMessage(0);
             fakeServer.clearTextMessages();
             socket->sendTextMessage("err: Invalid credentials");
         }
@@ -210,12 +214,12 @@ private slots:
     {
         FakeWebSocketServer fakeServer;
         auto account = FakeWebSocketServer::createAccount();
-        fakeServer.authenticateAccount(account);
+        QVERIFY(fakeServer.authenticateAccount(account));
 
         // Set the ping timeout interval to zero and check if the server attemps to authenticate again
         fakeServer.clearTextMessages();
         account->pushNotifications()->setPingTimeoutInterval(0);
-        fakeServer.authenticateAccount(account);
+        QVERIFY(fakeServer.authenticateAccount(account));
     }
 };
 
