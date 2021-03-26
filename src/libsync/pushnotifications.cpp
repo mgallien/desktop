@@ -36,7 +36,7 @@ void PushNotifications::reconnectToWebSocket()
 
 void PushNotifications::closeWebSocket()
 {
-    qCInfo(lcPushNotifications) << "Close websocket" << _webSocket;
+    qCInfo(lcPushNotifications) << "Close websocket" << _webSocket << "for account" << _account->url();
 
     _pingTimer.stop();
     _pingTimeoutTimer.stop();
@@ -54,7 +54,7 @@ void PushNotifications::closeWebSocket()
 
 void PushNotifications::onWebSocketConnected()
 {
-    qCInfo(lcPushNotifications) << "Connected to websocket" << _webSocket;
+    qCInfo(lcPushNotifications) << "Connected to websocket" << _webSocket << "for account" << _account->url();
 
     connect(_webSocket, &QWebSocket::textMessageReceived, this, &PushNotifications::onWebSocketTextMessageReceived, Qt::UniqueConnection);
 
@@ -74,7 +74,7 @@ void PushNotifications::authenticateOnWebSocket()
 
 void PushNotifications::onWebSocketDisconnected()
 {
-    qCInfo(lcPushNotifications) << "Disconnected from websocket" << _webSocket;
+    qCInfo(lcPushNotifications) << "Disconnected from websocket" << _webSocket << _webSocket << _account->url();
 }
 
 void PushNotifications::onWebSocketTextMessageReceived(const QString &message)
@@ -103,7 +103,7 @@ void PushNotifications::onWebSocketError(QAbstractSocket::SocketError error)
         return;
     }
 
-    qCWarning(lcPushNotifications) << "Websocket error" << error;
+    qCWarning(lcPushNotifications) << "Websocket error on" << _webSocket << "with account" << _account->url() << error;
     _isReady = false;
     emit connectionLost();
 }
@@ -132,7 +132,7 @@ bool PushNotifications::tryReconnectToWebSocket()
 
 void PushNotifications::onWebSocketSslErrors(const QList<QSslError> &errors)
 {
-    qCWarning(lcPushNotifications) << "Received websocket ssl errors:" << errors;
+    qCWarning(lcPushNotifications) << "Websocket ssl errors on" << _webSocket << "with account" << _account->url() << errors;
     _isReady = false;
     emit authenticationFailed();
 }
@@ -145,7 +145,7 @@ void PushNotifications::openWebSocket()
 
     if (!_webSocket) {
         _webSocket = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
-        qCInfo(lcPushNotifications) << "Created websocket" << _webSocket;
+        qCInfo(lcPushNotifications) << "Created websocket" << _webSocket << "for account" << _account->url();
     }
 
     if (_webSocket) {
