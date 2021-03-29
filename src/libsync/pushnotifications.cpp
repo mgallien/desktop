@@ -177,6 +177,7 @@ void PushNotifications::handleAuthenticated()
     _isReady = true;
     startPingTimeoutTimer();
     emit ready();
+    emit filesChanged(_account);
 }
 
 void PushNotifications::handleNotifyFile()

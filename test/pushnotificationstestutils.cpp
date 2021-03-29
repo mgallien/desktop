@@ -1,6 +1,7 @@
 #include <QLoggingCategory>
 #include <QSignalSpy>
 #include <QTest>
+#include <functional>
 
 #include "pushnotificationstestutils.h"
 #include "pushnotifications.h"
@@ -25,11 +26,13 @@ FakeWebSocketServer::~FakeWebSocketServer()
     close();
 }
 
-QWebSocket *FakeWebSocketServer::authenticateAccount(const OCC::AccountPtr account)
+QWebSocket *FakeWebSocketServer::authenticateAccount(const OCC::AccountPtr account, std::function<void(OCC::PushNotifications *pushNotifications)> beforeAuthentication, std::function<void(OCC::PushNotifications *pushNotifications)> afterAuthentication)
 {
     const auto pushNotifications = account->pushNotifications();
     Q_ASSERT(pushNotifications);
     QSignalSpy readySpy(pushNotifications, &OCC::PushNotifications::ready);
+
+    beforeAuthentication(pushNotifications);
 
     // Wait for authentication
     if (!waitForTextMessages()) {
@@ -57,6 +60,8 @@ QWebSocket *FakeWebSocketServer::authenticateAccount(const OCC::AccountPtr accou
     if (readySpy.count() != 1 || !account->pushNotifications()->isReady()) {
         return nullptr;
     }
+
+    afterAuthentication(pushNotifications);
 
     return socket;
 }

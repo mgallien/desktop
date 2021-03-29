@@ -14,9 +14,17 @@ private slots:
     void testSetup_correctCredentials_authenticateAndEmitReady()
     {
         FakeWebSocketServer fakeServer;
+        std::unique_ptr<QSignalSpy> filesChangedSpy;
         auto account = FakeWebSocketServer::createAccount();
 
-        QVERIFY(fakeServer.authenticateAccount(account));
+        QVERIFY(fakeServer.authenticateAccount(
+            account, [&filesChangedSpy](OCC::PushNotifications *pushNotifications) { filesChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::filesChanged)); },
+            [&filesChangedSpy, account](OCC::PushNotifications *) {
+                QVERIFY(filesChangedSpy->isValid());
+                QCOMPARE(filesChangedSpy->count(), 1);
+                auto accountFilesChanged = filesChangedSpy->at(0).at(0).value<OCC::Account *>();
+                QCOMPARE(accountFilesChanged, account.data());
+            }));
     }
 
     void testOnWebSocketTextMessageReceived_notifyFileMessage_emitFilesChanged()
@@ -213,13 +221,21 @@ private slots:
     void testPingTimeout_pingTimedOut_reconnect()
     {
         FakeWebSocketServer fakeServer;
+        std::unique_ptr<QSignalSpy> filesChangedSpy;
         auto account = FakeWebSocketServer::createAccount();
         QVERIFY(fakeServer.authenticateAccount(account));
 
         // Set the ping timeout interval to zero and check if the server attemps to authenticate again
         fakeServer.clearTextMessages();
         account->pushNotifications()->setPingTimeoutInterval(0);
-        QVERIFY(fakeServer.authenticateAccount(account));
+        QVERIFY(fakeServer.authenticateAccount(
+            account, [&filesChangedSpy](OCC::PushNotifications *pushNotifications) { filesChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::filesChanged)); },
+            [&filesChangedSpy, account](OCC::PushNotifications *) {
+                QVERIFY(filesChangedSpy->isValid());
+                QCOMPARE(filesChangedSpy->count(), 1);
+                auto accountFilesChanged = filesChangedSpy->at(0).at(0).value<OCC::Account *>();
+                QCOMPARE(accountFilesChanged, account.data());
+            }));
     }
 };
 

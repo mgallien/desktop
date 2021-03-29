@@ -31,7 +31,8 @@ public:
 
     ~FakeWebSocketServer();
 
-    QWebSocket *authenticateAccount(const OCC::AccountPtr account);
+    QWebSocket *authenticateAccount(
+        const OCC::AccountPtr account, std::function<void(OCC::PushNotifications *pushNotifications)> beforeAuthentication = [](OCC::PushNotifications *) {}, std::function<void(OCC::PushNotifications *pushNotifications)> afterAuthentication = [](OCC::PushNotifications *) {});
 
     void close();
 
