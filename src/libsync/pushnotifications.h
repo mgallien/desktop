@@ -126,6 +126,10 @@ private:
     void handleNotifyNotification();
     void handleNotifyActivity();
 
+    void emitFilesChanged();
+    void emitNotificationsChanged();
+    void emitActivitiesChanged();
+
     Account *_account = nullptr;
     QWebSocket *_webSocket = nullptr;
     uint8_t _failedAuthenticationAttemptsCount = 0;

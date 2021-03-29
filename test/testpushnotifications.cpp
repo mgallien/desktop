@@ -2,9 +2,29 @@
 #include <QVector>
 #include <QWebSocketServer>
 #include <QSignalSpy>
+#include <qsignalspy.h>
 
+#include "accountfwd.h"
 #include "pushnotifications.h"
 #include "pushnotificationstestutils.h"
+
+bool verifyCalledOnceWithAccount(QSignalSpy &spy, OCC::AccountPtr account, bool wait = false)
+{
+    if (wait && !spy.wait()) {
+      return false;
+    }
+
+    if (spy.count() != 1) {
+        return false;
+    }
+
+    auto accountFromSpy = spy.at(0).at(0).value<OCC::Account *>();
+    if (accountFromSpy != account.data()) {
+        return false;
+    }
+
+    return true;
+}
 
 class TestPushNotifications : public QObject
 {
@@ -15,15 +35,20 @@ private slots:
     {
         FakeWebSocketServer fakeServer;
         std::unique_ptr<QSignalSpy> filesChangedSpy;
+        std::unique_ptr<QSignalSpy> notificationsChangedSpy;
+        std::unique_ptr<QSignalSpy> activitiesChangedSpy;
         auto account = FakeWebSocketServer::createAccount();
 
         QVERIFY(fakeServer.authenticateAccount(
-            account, [&filesChangedSpy](OCC::PushNotifications *pushNotifications) { filesChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::filesChanged)); },
-            [&filesChangedSpy, account](OCC::PushNotifications *) {
-                QVERIFY(filesChangedSpy->isValid());
-                QCOMPARE(filesChangedSpy->count(), 1);
-                auto accountFilesChanged = filesChangedSpy->at(0).at(0).value<OCC::Account *>();
-                QCOMPARE(accountFilesChanged, account.data());
+            account, [&](OCC::PushNotifications *pushNotifications) {
+                filesChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::filesChanged));
+                notificationsChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::notificationsChanged));
+                activitiesChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::activitiesChanged));
+            },
+            [&] {
+                QVERIFY(verifyCalledOnceWithAccount(*filesChangedSpy, account));
+                QVERIFY(verifyCalledOnceWithAccount(*notificationsChangedSpy, account));
+                QVERIFY(verifyCalledOnceWithAccount(*activitiesChangedSpy, account));
             }));
     }
 
@@ -34,15 +59,11 @@ private slots:
         const auto socket = fakeServer.authenticateAccount(account);
         QVERIFY(socket);
         QSignalSpy filesChangedSpy(account->pushNotifications(), &OCC::PushNotifications::filesChanged);
-        QVERIFY(filesChangedSpy.isValid());
 
         socket->sendTextMessage("notify_file");
 
         // filesChanged signal should be emitted
-        QVERIFY(filesChangedSpy.wait());
-        QCOMPARE(filesChangedSpy.count(), 1);
-        auto accountFilesChanged = filesChangedSpy.at(0).at(0).value<OCC::Account *>();
-        QCOMPARE(accountFilesChanged, account.data());
+        QVERIFY(verifyCalledOnceWithAccount(filesChangedSpy, account, true));
     }
 
     void testOnWebSocketTextMessageReceived_notifyActivityMessage_emitNotification()
@@ -58,10 +79,7 @@ private slots:
         socket->sendTextMessage("notify_activity");
 
         // notification signal should be emitted
-        QVERIFY(activitySpy.wait());
-        QCOMPARE(activitySpy.count(), 1);
-        auto accountFilesChanged = activitySpy.at(0).at(0).value<OCC::Account *>();
-        QCOMPARE(accountFilesChanged, account.data());
+        QVERIFY(verifyCalledOnceWithAccount(activitySpy, account, true));
     }
 
     void testOnWebSocketTextMessageReceived_notifyNotificationMessage_emitNotification()
@@ -77,10 +95,7 @@ private slots:
         socket->sendTextMessage("notify_notification");
 
         // notification signal should be emitted
-        QVERIFY(notificationSpy.wait());
-        QCOMPARE(notificationSpy.count(), 1);
-        auto accountFilesChanged = notificationSpy.at(0).at(0).value<OCC::Account *>();
-        QCOMPARE(accountFilesChanged, account.data());
+        QVERIFY(verifyCalledOnceWithAccount(notificationSpy, account, true));
     }
 
     void testOnWebSocketTextMessageReceived_invalidCredentialsMessage_reconnectWebSocket()
@@ -222,6 +237,8 @@ private slots:
     {
         FakeWebSocketServer fakeServer;
         std::unique_ptr<QSignalSpy> filesChangedSpy;
+        std::unique_ptr<QSignalSpy> notificationsChangedSpy;
+        std::unique_ptr<QSignalSpy> activitiesChangedSpy;
         auto account = FakeWebSocketServer::createAccount();
         QVERIFY(fakeServer.authenticateAccount(account));
 
@@ -229,12 +246,15 @@ private slots:
         fakeServer.clearTextMessages();
         account->pushNotifications()->setPingTimeoutInterval(0);
         QVERIFY(fakeServer.authenticateAccount(
-            account, [&filesChangedSpy](OCC::PushNotifications *pushNotifications) { filesChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::filesChanged)); },
-            [&filesChangedSpy, account](OCC::PushNotifications *) {
-                QVERIFY(filesChangedSpy->isValid());
-                QCOMPARE(filesChangedSpy->count(), 1);
-                auto accountFilesChanged = filesChangedSpy->at(0).at(0).value<OCC::Account *>();
-                QCOMPARE(accountFilesChanged, account.data());
+            account, [&](OCC::PushNotifications *pushNotifications) {
+                filesChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::filesChanged));
+                notificationsChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::notificationsChanged));
+                activitiesChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::activitiesChanged));
+            },
+            [&] {
+                QVERIFY(verifyCalledOnceWithAccount(*filesChangedSpy, account));
+                QVERIFY(verifyCalledOnceWithAccount(*notificationsChangedSpy, account));
+                QVERIFY(verifyCalledOnceWithAccount(*activitiesChangedSpy, account));
             }));
     }
 };

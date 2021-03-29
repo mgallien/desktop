@@ -177,13 +177,19 @@ void PushNotifications::handleAuthenticated()
     _isReady = true;
     startPingTimeoutTimer();
     emit ready();
-    emit filesChanged(_account);
+
+    // We maybe reconnected to websocket while being offline for a
+    // while. To not miss any notifications that may have happend,
+    // emit all the signals once.
+    emitFilesChanged();
+    emitNotificationsChanged();
+    emitActivitiesChanged();
 }
 
 void PushNotifications::handleNotifyFile()
 {
     qCInfo(lcPushNotifications) << "Files push notification arrived";
-    emit filesChanged(_account);
+    emitFilesChanged();
 }
 
 void PushNotifications::handleInvalidCredentials()
@@ -198,13 +204,13 @@ void PushNotifications::handleInvalidCredentials()
 void PushNotifications::handleNotifyNotification()
 {
     qCInfo(lcPushNotifications) << "Push notification arrived";
-    emit notificationsChanged(_account);
+    emitNotificationsChanged();
 }
 
 void PushNotifications::handleNotifyActivity()
 {
     qCInfo(lcPushNotifications) << "Push activity arrived";
-    emit activitiesChanged(_account);
+    emitActivitiesChanged();
 }
 
 void PushNotifications::onWebSocketPongReceived(quint64 /*elapsedTime*/, const QByteArray &payload)
@@ -277,5 +283,20 @@ void PushNotifications::setPingTimeoutInterval(uint32_t timeoutInterval)
 {
     _pingTimeoutInterval = timeoutInterval;
     startPingTimeoutTimer();
+}
+
+void PushNotifications::emitFilesChanged()
+{
+    emit filesChanged(_account);
+}
+
+void PushNotifications::emitNotificationsChanged()
+{
+    emit notificationsChanged(_account);
+}
+
+void PushNotifications::emitActivitiesChanged()
+{
+    emit activitiesChanged(_account);
 }
 }

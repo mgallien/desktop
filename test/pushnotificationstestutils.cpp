@@ -26,7 +26,7 @@ FakeWebSocketServer::~FakeWebSocketServer()
     close();
 }
 
-QWebSocket *FakeWebSocketServer::authenticateAccount(const OCC::AccountPtr account, std::function<void(OCC::PushNotifications *pushNotifications)> beforeAuthentication, std::function<void(OCC::PushNotifications *pushNotifications)> afterAuthentication)
+QWebSocket *FakeWebSocketServer::authenticateAccount(const OCC::AccountPtr account, std::function<void(OCC::PushNotifications *pushNotifications)> beforeAuthentication, std::function<void(void)> afterAuthentication)
 {
     const auto pushNotifications = account->pushNotifications();
     Q_ASSERT(pushNotifications);
@@ -61,7 +61,7 @@ QWebSocket *FakeWebSocketServer::authenticateAccount(const OCC::AccountPtr accou
         return nullptr;
     }
 
-    afterAuthentication(pushNotifications);
+    afterAuthentication();
 
     return socket;
 }
