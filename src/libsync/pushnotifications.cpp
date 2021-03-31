@@ -39,7 +39,7 @@ void PushNotifications::closeWebSocket()
     qCInfo(lcPushNotifications) << "Close websocket" << _webSocket << "for account" << _account->url();
 
     _pingTimer.stop();
-    _pingTimeoutTimer.stop();
+    _pongTimedOutTimer.stop();
     _isReady = false;
 
     // Maybe there run some reconnection attempts
@@ -74,7 +74,7 @@ void PushNotifications::authenticateOnWebSocket()
 
 void PushNotifications::onWebSocketDisconnected()
 {
-    qCInfo(lcPushNotifications) << "Disconnected from websocket" << _webSocket << _webSocket << _account->url();
+    qCInfo(lcPushNotifications) << "Disconnected from websocket" << _webSocket << "for account" << _account->url();
 }
 
 void PushNotifications::onWebSocketTextMessageReceived(const QString &message)
@@ -175,7 +175,7 @@ void PushNotifications::handleAuthenticated()
     qCInfo(lcPushNotifications) << "Authenticated successful on websocket";
     _failedAuthenticationAttemptsCount = 0;
     _isReady = true;
-    startPingTimeoutTimer();
+    startPingTimer();
     emit ready();
 
     // We maybe reconnected to websocket while being offline for a
@@ -213,47 +213,30 @@ void PushNotifications::handleNotifyActivity()
     emitActivitiesChanged();
 }
 
-void PushNotifications::onWebSocketPongReceived(quint64 /*elapsedTime*/, const QByteArray &payload)
+void PushNotifications::onWebSocketPongReceived(quint64 /*elapsedTime*/, const QByteArray & /*payload*/)
 {
-    handleTimeoutPong(payload);
-}
-
-void PushNotifications::handleTimeoutPong(const QByteArray &payload)
-{
-    // We are not interested in different pongs from the server
-    const auto expectedPingPayload = timeoutPingPayload();
-    if (payload != expectedPingPayload) {
-        return;
-    }
-
     qCDebug(lcPushNotifications) << "Pong received in time";
-
-
-    _timeoutPongReceivedFromWebSocketServer = true;
-    startPingTimeoutTimer();
+    // We are fine with every kind of pong and don't care about the
+    // payload. As long as we receive pongs the server is still alive.
+    _pongReceivedFromWebSocketServer = true;
+    startPingTimer();
 }
 
-void PushNotifications::startPingTimeoutTimer()
+void PushNotifications::startPingTimer()
 {
-    _pingTimeoutTimer.stop();
-    _pingTimer.setInterval(_pingTimeoutInterval);
+    _pongTimedOutTimer.stop();
+    _pingTimer.setInterval(_pingInterval);
     _pingTimer.setSingleShot(true);
     connect(&_pingTimer, &QTimer::timeout, this, &PushNotifications::pingWebSocketServer, Qt::UniqueConnection);
     _pingTimer.start();
 }
 
-void PushNotifications::startPingTimedOutTimer()
+void PushNotifications::startPongTimedOutTimer()
 {
-    _pingTimeoutTimer.setInterval(_pingTimeoutInterval);
-    _pingTimeoutTimer.setSingleShot(true);
-    connect(&_pingTimeoutTimer, &QTimer::timeout, this, &PushNotifications::onPingTimedOut, Qt::UniqueConnection);
-    _pingTimeoutTimer.start();
-}
-
-QByteArray PushNotifications::timeoutPingPayload() const
-{
-    const void *push_notifications_address = this;
-    return QByteArray(reinterpret_cast<char *>(&push_notifications_address), sizeof(push_notifications_address));
+    _pongTimedOutTimer.setInterval(_pingInterval);
+    _pongTimedOutTimer.setSingleShot(true);
+    connect(&_pongTimedOutTimer, &QTimer::timeout, this, &PushNotifications::onPingTimedOut, Qt::UniqueConnection);
+    _pongTimedOutTimer.start();
 }
 
 void PushNotifications::pingWebSocketServer()
@@ -261,15 +244,15 @@ void PushNotifications::pingWebSocketServer()
     Q_ASSERT(_webSocket);
     qCDebug(lcPushNotifications, "Ping websocket server");
 
-    _timeoutPongReceivedFromWebSocketServer = false;
+    _pongReceivedFromWebSocketServer = false;
 
-    _webSocket->ping(timeoutPingPayload());
-    startPingTimedOutTimer();
+    _webSocket->ping({});
+    startPongTimedOutTimer();
 }
 
 void PushNotifications::onPingTimedOut()
 {
-    if (_timeoutPongReceivedFromWebSocketServer) {
+    if (_pongReceivedFromWebSocketServer) {
         qCDebug(lcPushNotifications) << "Websocket respond with a pong in time.";
         return;
     }
@@ -279,10 +262,10 @@ void PushNotifications::onPingTimedOut()
     setup();
 }
 
-void PushNotifications::setPingTimeoutInterval(uint32_t timeoutInterval)
+void PushNotifications::setPingInterval(uint32_t timeoutInterval)
 {
-    _pingTimeoutInterval = timeoutInterval;
-    startPingTimeoutTimer();
+    _pingInterval = timeoutInterval;
+    startPingTimer();
 }
 
 void PushNotifications::emitFilesChanged()

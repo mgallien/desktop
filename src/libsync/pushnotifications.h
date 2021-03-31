@@ -59,9 +59,9 @@ public:
      *
      * If the websocket does not respond in timeoutInterval, the connection will be terminated.
      *
-     * @param timeoutInterval Interval in milliseconds.
+     * @param interval Interval in milliseconds.
      */
-    void setPingTimeoutInterval(uint32_t timeoutInterval);
+    void setPingInterval(uint32_t interval);
 
 signals:
     /**
@@ -116,9 +116,8 @@ private:
     void initReconnectTimer();
     void pingWebSocketServer();
     QByteArray timeoutPingPayload() const;
-    void handleTimeoutPong(const QByteArray &payload);
-    void startPingTimeoutTimer();
-    void startPingTimedOutTimer();
+    void startPingTimer();
+    void startPongTimedOutTimer();
 
     void handleAuthenticated();
     void handleNotifyFile();
@@ -138,9 +137,9 @@ private:
     bool _isReady = false;
 
     QTimer _pingTimer;
-    QTimer _pingTimeoutTimer;
-    bool _timeoutPongReceivedFromWebSocketServer = false;
-    uint32_t _pingTimeoutInterval = 30 * 1000;
+    QTimer _pongTimedOutTimer;
+    bool _pongReceivedFromWebSocketServer = false;
+    uint32_t _pingInterval = 30 * 1000;
 };
 
 }

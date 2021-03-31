@@ -244,7 +244,7 @@ private slots:
 
         // Set the ping timeout interval to zero and check if the server attemps to authenticate again
         fakeServer.clearTextMessages();
-        account->pushNotifications()->setPingTimeoutInterval(0);
+        account->pushNotifications()->setPingInterval(0);
         QVERIFY(fakeServer.authenticateAccount(
             account, [&](OCC::PushNotifications *pushNotifications) {
                 filesChangedSpy.reset(new QSignalSpy(pushNotifications, &OCC::PushNotifications::filesChanged));
