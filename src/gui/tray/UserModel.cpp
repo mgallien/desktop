@@ -59,12 +59,12 @@ User::User(AccountStatePtr &account, const bool &isCurrent, QObject *parent)
     connect(_activityModel, &ActivityListModel::sendNotificationRequest, this, &User::slotSendNotificationRequest);
 }
 
-void User::displayNotification(const QString &title, const QString &message)
+void User::showOsNotification(const QString &title, const QString &message)
 {
-    displayNotification(notificationId(title, message), title, message);
+    showOsNotification(notificationId(title, message), title, message);
 }
 
-void User::displayNotification(int id, const QString &title, const QString &message)
+void User::showOsNotification(int id, const QString &title, const QString &message)
 {
     // Whether a new notification was added to the list
     bool newNotificationShown = false;
@@ -84,7 +84,7 @@ void User::displayNotification(int id, const QString &title, const QString &mess
 
         // Assemble a tray notification for the NEW notification
         ConfigFile cfg;
-        if (cfg.optionalServerNotifications()) {
+        if (cfg.optionalServerNotifications() && isDesktopNotificationsAllowed()) {
             emit guiLog(title, message);
         }
     }
@@ -104,7 +104,7 @@ void User::slotBuildNotificationDisplay(const ActivityList &list)
             continue;
         }
         const auto message = AccountManager::instance()->accounts().count() == 1 ? "" : activity._accName;
-        displayNotification(activity._subject, message);
+        showOsNotification(activity._subject, message);
         _activityModel->addNotificationToActivityList(activity);
     }
 }
@@ -500,7 +500,7 @@ void User::slotItemCompleted(const QString &folder, const SyncFileItemPtr &item)
         } else {
             // add 'protocol error' to activity list
             if (item->_status == SyncFileItem::Status::FileNameInvalid) {
-                displayNotification(item->_file, activity._subject);
+                showOsNotification(item->_file, activity._subject);
             }
             _activityModel->addErrorToActivityList(activity);
         }
@@ -510,12 +510,12 @@ void User::slotItemCompleted(const QString &folder, const SyncFileItemPtr &item)
 int User::notificationId(const QString &subject, const QString &message)
 {
     const QString idKey = subject + message;
-    const auto idsIter = notificationIds.find(idKey);
-    if (idsIter != notificationIds.end()) {
+    const auto idsIter = _notificationIds.find(idKey);
+    if (idsIter != _notificationIds.end()) {
         return *idsIter;
     }
-    const auto newId = notificationIds.size();
-    notificationIds[idKey] = newId;
+    const auto newId = _notificationIds.size();
+    _notificationIds[idKey] = newId;
     return newId;
 }
 

@@ -93,15 +93,15 @@ private:
     bool isUnsolvableConflict(const SyncFileItemPtr &item) const;
 
     int notificationId(const QString &subject, const QString &message);
-    void displayNotification(const QString &title, const QString &message);
-    void displayNotification(int id, const QString &title, const QString &message);
+    void showOsNotification(const QString &title, const QString &message);
+    void showOsNotification(int id, const QString &title, const QString &message);
 
 private:
     AccountStatePtr _account;
     bool _isCurrentUser;
     ActivityListModel *_activityModel;
     ActivityList _blacklistedNotifications;
-    QHash<QString, int> notificationIds;
+    QHash<QString, int> _notificationIds;
 
     QTimer _notificationCheckTimer;
     QHash<AccountState *, QElapsedTimer> _timeSinceLastCheck;
