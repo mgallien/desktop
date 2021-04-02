@@ -91,7 +91,7 @@ Result<bool, QString> Vfs::checkAvailability(const QString &path)
 void Vfs::start(const VfsSetupParams &params)
 {
     _setupParams = params;
-    startImpl(params);
+    startImpl(_setupParams);
 }
 
 bool Vfs::setPinStateInDb(const QString &folderPath, PinState state)
